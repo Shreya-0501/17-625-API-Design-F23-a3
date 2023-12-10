@@ -1,0 +1,146 @@
+syntax = "proto3";
+
+
+service RedditService {
+  // Create a Post
+  rpc CreatePost(CreatePostRequest) returns (PostResponse) {}
+
+  // Upvote or Downvote a Post
+  rpc VotePost(VotePostRequest) returns (VoteResponse) {}
+
+  // Retrieve Post Content
+  rpc RetrievePost(RetrievePostRequest) returns (PostResponse) {}
+
+  // Create a Comment
+  rpc CreateComment(CreateCommentRequest) returns (CommentResponse) {}
+
+  // Upvote or Downvote a Comment
+  rpc VoteComment(VoteCommentRequest) returns (VoteResponse) {}
+
+  // Retrieve N most upvoted comments under a post
+  rpc RetrieveTopComments(TopCommentsRequest) returns (TopCommentsResponse) {}
+
+  // Expand a comment branch
+  rpc ExpandCommentBranch(ExpandCommentBranchRequest) returns (CommentBranchResponse) {}
+
+  // Monitor updates for a post and its comments
+  rpc MonitorUpdates(stream MonitorUpdatesRequest) returns (stream ScoreUpdateResponse) {}
+}
+
+message User {
+  string user_id = 1; // Human readable user ID
+}
+
+message Post {
+  string id = 1;  // Unique identifier for the post
+  string title = 2;
+  string text = 3;
+  oneof media {
+    string video_url = 4;
+    string image_url = 5;
+  }
+  string author = 6; // Optional author
+  int32 score = 7;   // Score can be negative
+  PostState state = 8;
+  string publication_date = 9; // Could be a string in ISO 8601 format or a timestamp
+  Subreddit subreddit = 10; // Reference to the Subreddit
+
+  enum PostState {
+    NORMAL = 0;
+    LOCKED = 1;
+    HIDDEN = 2; // Another word for deleted
+  }
+}
+
+message Comment {
+  string id = 1;
+  User author = 2; // Comments do have an author
+  string text = 3;
+  int32 score = 4; // Score can be negative
+  CommentState state = 5;
+  string publication_date = 6; // Could be a string in ISO 8601 format or a timestamp
+  repeated Comment replies = 7; // Comments can be nested
+
+  enum CommentState {
+    NORMAL = 0;
+    HIDDEN = 1;
+  }
+}
+
+message Subreddit {
+  string name = 1; // Human-readable name
+  SubredditVisibility visibility = 2;
+  repeated string tags = 3; // Tags attached to posts
+
+  enum SubredditVisibility {
+    PUBLIC = 0;
+    PRIVATE = 1;
+    HIDDEN = 2;
+  }
+}
+
+// Request and Response for CreatePost
+message CreatePostRequest {
+  Post post = 1;
+}
+message PostResponse {
+  Post post = 1;
+}
+
+// Request and Response for VotePost and VoteComment
+message VotePostRequest {
+  string post_id = 1;
+  bool upvote = 2; // true for upvote, false for downvote
+}
+message VoteResponse {
+  int32 new_score = 1;
+}
+
+// Request and Response for RetrievePost
+message RetrievePostRequest {
+  string post_id = 1;
+}
+// PostResponse is already defined
+
+// Request and Response for CreateComment
+message CreateCommentRequest {
+  Comment comment = 1;
+}
+message CommentResponse {
+  Comment comment = 1;
+}
+
+// Request and Response for RetrieveTopComments
+message TopCommentsRequest {
+  string post_id = 1;
+  int32 number_of_comments = 2; // N
+}
+message TopCommentsResponse {
+  repeated Comment comments = 1;
+}
+
+// Request and Response for ExpandCommentBranch
+message ExpandCommentBranchRequest {
+  string comment_id = 1;
+  int32 number_of_comments = 2; // N
+}
+message CommentBranchResponse {
+  repeated Comment comments = 1; // Tree of depth 2 comments
+}
+
+message VoteCommentRequest {
+  string comment_id = 1;  // Unique identifier of the comment
+  bool upvote = 2;       // True for upvote, false for downvote
+}
+
+message MonitorUpdatesRequest {
+  oneof request_type {
+    string post_id = 1;
+    string comment_id = 2;
+  }
+}
+
+message ScoreUpdateResponse {
+  string item_id = 1; // Can be either a post_id or comment_id
+  int32 new_score = 2;
+}
