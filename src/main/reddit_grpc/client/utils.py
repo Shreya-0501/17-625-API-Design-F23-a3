@@ -1,6 +1,5 @@
 from src.main.reddit_grpc.client.client import RedditClient
 
-
 def retrieve_and_expand_comment(client, post_id):
     """
     Retrieves a post, its top comments, expands the most upvoted comment,
