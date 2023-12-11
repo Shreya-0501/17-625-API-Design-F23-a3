@@ -46,7 +46,6 @@ class RedditClient:
         comments = [
             {"user_id": "user2", "text": "This is a comment.", "parent_id": "post_1"},
             {"user_id": "user3", "text": "Nested comment.", "parent_id": "comment_1"}
-            # Add more comments as needed
         ]
 
         for comment in comments:
