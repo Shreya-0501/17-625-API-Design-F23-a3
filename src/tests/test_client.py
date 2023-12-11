@@ -1,7 +1,7 @@
 import unittest
 import os
 import sys
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 # Add the path to the 'client' directory to sys.path
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -106,3 +106,4 @@ class TestRedditClient(unittest.TestCase):
         self.mock_stub.ExpandCommentBranch.assert_called_once()
         self.assertEqual(len(response.comments), 1)
         self.assertEqual(response.comments[0].id, 'comment_1')
+
