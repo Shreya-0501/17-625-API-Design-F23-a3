@@ -3,28 +3,28 @@ syntax = "proto3";
 
 service RedditService {
   // Create a Post
-  rpc CreatePost(CreatePostRequest) returns (PostResponse) {}
+  rpc CreatePost(CreatePostRequest) returns (CreatePostResponse) {}
 
   // Upvote or Downvote a Post
-  rpc VotePost(VotePostRequest) returns (VoteResponse) {}
+  rpc VotePost(VotePostRequest) returns (VotePostResponse) {}
 
   // Retrieve Post Content
-  rpc RetrievePost(RetrievePostRequest) returns (PostResponse) {}
+  rpc RetrievePost(RetrievePostRequest) returns (RetrievePostResponse) {}
 
   // Create a Comment
-  rpc CreateComment(CreateCommentRequest) returns (CommentResponse) {}
+  rpc CreateComment(CreateCommentRequest) returns (CreateCommentResponse) {}
 
   // Upvote or Downvote a Comment
-  rpc VoteComment(VoteCommentRequest) returns (VoteResponse) {}
+  rpc VoteComment(VoteCommentRequest) returns (VoteCommentResponse) {}
 
   // Retrieve N most upvoted comments under a post
-  rpc RetrieveTopComments(TopCommentsRequest) returns (TopCommentsResponse) {}
+  rpc RetrieveTopComments(RetrieveTopCommentsRequest) returns (RetrieveTopCommentsResponse) {}
 
   // Expand a comment branch
-  rpc ExpandCommentBranch(ExpandCommentBranchRequest) returns (CommentBranchResponse) {}
+  rpc ExpandCommentBranch(ExpandCommentBranchRequest) returns (ExpandCommentBranchResponse) {}
 
   // Monitor updates for a post and its comments
-  rpc MonitorUpdates(stream MonitorUpdatesRequest) returns (stream ScoreUpdateResponse) {}
+  rpc MonitorUpdates(stream MonitorUpdatesRequest) returns (stream MonitorUpdatesResponse) {}
 }
 
 message User {
@@ -44,6 +44,7 @@ message Post {
   PostState state = 8;
   string publication_date = 9; // Could be a string in ISO 8601 format or a timestamp
   Subreddit subreddit = 10; // Reference to the Subreddit
+  repeated string comment_ids = 11;
 
   enum PostState {
     NORMAL = 0;
@@ -59,7 +60,9 @@ message Comment {
   int32 score = 4; // Score can be negative
   CommentState state = 5;
   string publication_date = 6; // Could be a string in ISO 8601 format or a timestamp
-  repeated Comment replies = 7; // Comments can be nested
+  repeated string reply_ids = 7; // Comments can be nested
+  string parent_id = 8; // The ID of the parent this comment is associated with (either a post or another comment)
+  bool has_replies = 9;  // Indicates if this comment has replies
 
   enum CommentState {
     NORMAL = 0;
@@ -83,16 +86,16 @@ message Subreddit {
 message CreatePostRequest {
   Post post = 1;
 }
-message PostResponse {
+message CreatePostResponse {
   Post post = 1;
 }
 
-// Request and Response for VotePost and VoteComment
+// Request and Response for VotePost
 message VotePostRequest {
   string post_id = 1;
   bool upvote = 2; // true for upvote, false for downvote
 }
-message VoteResponse {
+message VotePostResponse {
   int32 new_score = 1;
 }
 
@@ -100,22 +103,24 @@ message VoteResponse {
 message RetrievePostRequest {
   string post_id = 1;
 }
-// PostResponse is already defined
+message RetrievePostResponse {
+  Post post = 1;
+}
 
 // Request and Response for CreateComment
 message CreateCommentRequest {
   Comment comment = 1;
 }
-message CommentResponse {
+message CreateCommentResponse {
   Comment comment = 1;
 }
 
 // Request and Response for RetrieveTopComments
-message TopCommentsRequest {
+message RetrieveTopCommentsRequest {
   string post_id = 1;
   int32 number_of_comments = 2; // N
 }
-message TopCommentsResponse {
+message RetrieveTopCommentsResponse {
   repeated Comment comments = 1;
 }
 
@@ -124,23 +129,27 @@ message ExpandCommentBranchRequest {
   string comment_id = 1;
   int32 number_of_comments = 2; // N
 }
-message CommentBranchResponse {
-  repeated Comment comments = 1; // Tree of depth 2 comments
+message ExpandCommentBranchResponse {
+  repeated Comment comments = 1;
 }
 
+// Request and Response for Vote Comment
+message VoteCommentResponse {
+  int32 new_score = 1;
+}
 message VoteCommentRequest {
   string comment_id = 1;  // Unique identifier of the comment
   bool upvote = 2;       // True for upvote, false for downvote
 }
 
+// Request and Response for MonitorUpdates
 message MonitorUpdatesRequest {
   oneof request_type {
     string post_id = 1;
     string comment_id = 2;
   }
 }
-
-message ScoreUpdateResponse {
-  string item_id = 1; // Can be either a post_id or comment_id
+message MonitorUpdatesResponse {
+  string item_id = 1;
   int32 new_score = 2;
 }
