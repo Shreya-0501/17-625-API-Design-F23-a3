@@ -1,11 +1,6 @@
-import queue
-import random
-import threading
-import time
 import grpc
 import reddit_pb2
 import reddit_pb2_grpc
-
 
 class RedditClient:
 

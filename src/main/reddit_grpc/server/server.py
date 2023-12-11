@@ -1,10 +1,8 @@
 import argparse
-import time
 from concurrent import futures
 import grpc
 import reddit_pb2
 import reddit_pb2_grpc
-
 
 class RedditService(reddit_pb2_grpc.RedditServiceServicer):
     def __init__(self):

@@ -1,6 +1,5 @@
 syntax = "proto3";
 
-
 service RedditService {
   // Create a Post
   rpc CreatePost(CreatePostRequest) returns (CreatePostResponse) {}
