@@ -1,108 +1,127 @@
+import queue
 import random
 import threading
 import time
-
 import grpc
 import reddit_pb2
 import reddit_pb2_grpc
 
 
 class RedditClient:
+
     def __init__(self, host, port):
         self.channel = grpc.insecure_channel(f'{host}:{port}')
         self.stub = reddit_pb2_grpc.RedditServiceStub(self.channel)
+        self.known_posts = {f'post_{i}' for i in range(1, 5)}
+        self.known_comments = {f'comment_{i}' for i in range(1, 10)}
+
+
+    def setup_data(self):
+        # Creating posts
+        posts = [
+            {"title": "Carnegie Mellon's history", "content": "In 1967, Carnegie Tech merged with the Mellon Institute...", "author": "author1", "subreddit": "subreddit1"},
+            {"title": "Carnegie Institute of Technology", "content": "During the first half of the 20th century...", "author": "author2", "subreddit": "subreddit1"},
+            {"title": "School of Computer Science", "content": "Carnegie Mellon’s School of Computer Science is...", "author": "author5", "subreddit": "subreddit2"}
+        ]
+
+        for post in posts:
+            response = self.create_post(post["title"], post["content"], post["author"], post["subreddit"])
+            print(f'Created post with ID: {response.post.id}')
+            self.known_posts.add(response.post.id)
+
+        # Creating comments and nested comments
+        comments = [
+            {"user_id": "user2", "text": "This is a comment.", "parent_id": "post_1"},
+            {"user_id": "user3", "text": "Nested comment.", "parent_id": "comment_1"}
+            # Add more comments as needed
+        ]
+
+        for comment in comments:
+            response = self.create_comment(comment["user_id"], comment["text"], comment["parent_id"])
+            print(f'Created comment with ID: {response.comment.id}')
+            self.known_comments.add(response.comment.id)
+
+        # Voting on posts and comments
+        for post_id in self.known_posts:
+            self.vote_post(post_id, True)  # Upvoting all posts
+        for comment_id in self.known_comments:
+            self.vote_comment(comment_id, True)  # Upvoting all comments
+
+        # Retrieving posts and top comments
+        for post_id in self.known_posts:
+            retrieved_post = self.retrieve_post(post_id)
+            print(f'Retrieved post: {retrieved_post.post.title}, Score: {retrieved_post.post.score}')
+            top_comments = self.retrieve_top_comments(post_id, 2)
+            for c in top_comments.comments:
+                replies_status = "has replies" if c.has_replies else "no replies"
+                print(f'Top comment ID: {c.id}, Text: {c.text}, Score: {c.score}, Status: {replies_status}')
+
+        # Expanding comment branches
+        for comment_id in self.known_comments:
+            branch = self.expand_comment_branch(comment_id, 2)
+            main_comment_printed = False
+            for c in branch.comments:
+                if not main_comment_printed:
+                    print(f'Main Comment ID: {c.id}, Text: {c.text}, Score: {c.score}')
+                    main_comment_printed = True
+                else:
+                    print(f'  Reply ID: {c.id}, Text: {c.text}, Score: {c.score}')
+
 
     def create_post(self, title, text, author, subreddit_name):
         subreddit = reddit_pb2.Subreddit(name=subreddit_name)
         post = reddit_pb2.Post(title=title, text=text, author=author, subreddit=subreddit)
-        return self.stub.CreatePost(reddit_pb2.CreatePostRequest(post=post))
+        response = self.stub.CreatePost(reddit_pb2.CreatePostRequest(post=post))
+        self.known_posts.add(response.post.id)
+        return response
 
     def vote_post(self, post_id, upvote):
-        return self.stub.VotePost(reddit_pb2.VotePostRequest(post_id=post_id, upvote=upvote))
+        response = self.stub.VotePost(reddit_pb2.VotePostRequest(post_id=post_id, upvote=upvote))
+        return response
 
     def retrieve_post(self, post_id):
-        return self.stub.RetrievePost(reddit_pb2.RetrievePostRequest(post_id=post_id))
+        response = self.stub.RetrievePost(reddit_pb2.RetrievePostRequest(post_id=post_id))
+        return response
 
-    def create_comment(self, user_id, text, post_id):
+    def create_comment(self, user_id, text, parent_id):
         author = reddit_pb2.User(user_id=user_id)
-        comment = reddit_pb2.Comment(author=author, text=text)
-        return self.stub.CreateComment(reddit_pb2.CreateCommentRequest(comment=comment))
+        comment = reddit_pb2.Comment(author=author, text=text, parent_id=parent_id)
+        response = self.stub.CreateComment(reddit_pb2.CreateCommentRequest(comment=comment))
+        self.known_comments.add(response.comment.id)
+        return response
 
     def vote_comment(self, comment_id, upvote):
-        return self.stub.VoteComment(reddit_pb2.VoteCommentRequest(comment_id=comment_id, upvote=upvote))
+        response = self.stub.VoteComment(reddit_pb2.VoteCommentRequest(comment_id=comment_id, upvote=upvote))
+        return response
 
     def retrieve_top_comments(self, post_id, number_of_comments):
-        return self.stub.RetrieveTopComments(
-            reddit_pb2.TopCommentsRequest(post_id=post_id, number_of_comments=number_of_comments))
+        response = self.stub.RetrieveTopComments(reddit_pb2.RetrieveTopCommentsRequest(post_id=post_id, number_of_comments=number_of_comments))
+        return response
 
     def expand_comment_branch(self, comment_id, number_of_comments):
-        return self.stub.ExpandCommentBranch(
-            reddit_pb2.ExpandCommentBranchRequest(comment_id=comment_id, number_of_comments=number_of_comments))
+        response = self.stub.ExpandCommentBranch(reddit_pb2.ExpandCommentBranchRequest(comment_id=comment_id, number_of_comments=number_of_comments))
+        return response
 
     def monitor_updates(self):
-        responses = self.stub.MonitorUpdates(iterate_requests())
+        def request_generator():
+            ids_to_monitor = list(self.known_posts) + list(self.known_comments)
+            for item_id in ids_to_monitor:
+                if (item_id.startswith('post_') and item_id in self.known_posts) or \
+                        (item_id.startswith('comment_') and item_id in self.known_comments):
+                    if item_id.startswith('post_'):
+                        yield reddit_pb2.MonitorUpdatesRequest(post_id=item_id)
+                    elif item_id.startswith('comment_'):
+                        yield reddit_pb2.MonitorUpdatesRequest(comment_id=item_id)
+
         try:
-            for response in responses:
-                print(f"Update received for item {response.item_id}: new score is {response.new_score}")
+            for update in self.stub.MonitorUpdates(request_generator()):
+                print(f"Update received for {update.item_id}: New Score is {update.new_score}")
         except grpc.RpcError as e:
             print(f"RPC error occurred: {e.code()}")
-            print(e.debug_error_string())
+            print(e.details())
 
-
-def iterate_requests():
-    yield reddit_pb2.MonitorUpdatesRequest(post_id="post1")
-    yield reddit_pb2.MonitorUpdatesRequest(comment_id="comment1")
-    yield reddit_pb2.MonitorUpdatesRequest(comment_id="comment2")
-    for i in range(3, 10):
-        # Randomly decide whether to add a post or a comment update request
-        if random.choice([True, False]):
-            yield reddit_pb2.MonitorUpdatesRequest(post_id=f"post{i}")
-        else:
-            yield reddit_pb2.MonitorUpdatesRequest(comment_id=f"comment{i}")
-
-        # Sleep for a random duration between updates to simulate real-time behavior
-        time.sleep(random.randint(1, 3))
-
-# Example usage
 if __name__ == "__main__":
-    client = RedditClient("localhost", 50059)
+    client = RedditClient("localhost", 50559)
+    client.setup_data()
 
-    # Test creating a post
-    post = client.create_post("Sample Title", "Sample Text", "author1", "subreddit1")
-    print(f'Created post with ID: {post.post.id}')
-
-    # Test voting on a post
-    post_vote_response = client.vote_post(post.post.id, True)  # True to upvote
-    print(f'Voted on post {post.post.id}. New score: {post_vote_response.new_score}')
-
-    # Test retrieving a post
-    retrieved_post = client.retrieve_post(post.post.id)
-    print(f'Retrieved post: {retrieved_post.post.title}, Score: {retrieved_post.post.score}')
-
-    # Test creating a comment
-    comment = client.create_comment("user2", "This is a comment.", post.post.id)
-    print(f'Created comment with ID: {comment.comment.id}')
-
-    # Test voting on a comment
-    comment_vote_response = client.vote_comment(comment.comment.id, True)  # True to upvote
-    print(f'Voted on comment {comment.comment.id}. New score: {comment_vote_response.new_score}')
-
-    # Assume more comments have been created and test retrieving top comments
-    top_comments = client.retrieve_top_comments(post.post.id, 2)
-    for c in top_comments.comments:
-        print(f'Top comment ID: {c.id}, Text: {c.text}, Score: {c.score}')
-
-    # Test expanding a comment branch
-    branch = client.expand_comment_branch(comment.comment.id, 2)
-    for c in branch.comments:
-        print(f'Comment branch ID: {c.id}, Text: {c.text}, Score: {c.score}')
-
-    # Monitor updates - This will run indefinitely
-    # Start monitoring updates in a separate thread
-    print("Starting to monitor updates...")  # Debug print
-    monitor_thread = threading.Thread(target=client.monitor_updates)
-    monitor_thread.start()
-    monitor_thread.join()  # Optionally wait for the thread to finish, though it runs indefinitely
-
-
-
+    client.monitor_updates()  # Start monitoring updates directly
