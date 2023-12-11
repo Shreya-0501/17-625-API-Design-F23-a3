@@ -8,8 +8,17 @@ import reddit_pb2
 import reddit_pb2_grpc
 
 class RedditClient:
+    """
+    A client for interacting with the Reddit gRPC service.
+    """
 
     def __init__(self, host, port):
+        """
+        Initializes the RedditClient with the specified host and port.
+        Args:
+            host (str): The host of the gRPC server.
+            port (int): The port of the gRPC server.
+        """
         self.channel = grpc.insecure_channel(f'{host}:{port}')
         self.stub = reddit_pb2_grpc.RedditServiceStub(self.channel)
         self.known_posts = {f'post_{i}' for i in range(1, 5)}
@@ -18,6 +27,9 @@ class RedditClient:
 
 
     def setup_data(self):
+        """
+        Sets up initial data by creating predefined posts and comments.
+        """
         # Creating posts
         posts = [
             {"title": "Carnegie Mellon's history", "content": "In 1967, Carnegie Tech merged with the Mellon Institute...", "author": "author1", "subreddit": "subreddit1"},
@@ -70,6 +82,16 @@ class RedditClient:
 
 
     def create_post(self, title, text, author, subreddit_name):
+        """
+        Creates a new post.
+        Args:
+            title (str): The title of the post.
+            text (str): The content of the post.
+            author (str): The author of the post.
+            subreddit_name (str): The name of the subreddit for the post.
+        Returns:
+            The response from the server after creating the post.
+        """
         subreddit = reddit_pb2.Subreddit(name=subreddit_name)
         post = reddit_pb2.Post(title=title, text=text, author=author, subreddit=subreddit)
         response = self.stub.CreatePost(reddit_pb2.CreatePostRequest(post=post))
@@ -77,14 +99,38 @@ class RedditClient:
         return response
 
     def vote_post(self, post_id, upvote):
+        """
+        Votes on a post (upvote or downvote).
+        Args:
+            post_id (str): The ID of the post to vote on.
+            upvote (bool): True for upvote, False for downvote.
+        Returns:
+            The response from the server after voting on the post.
+        """
         response = self.stub.VotePost(reddit_pb2.VotePostRequest(post_id=post_id, upvote=upvote))
         return response
 
     def retrieve_post(self, post_id):
+        """
+        Retrieves a post by its ID.
+        Args:
+            post_id (str): The ID of the post to retrieve.
+        Returns:
+            The response from the server containing the post details.
+        """
         response = self.stub.RetrievePost(reddit_pb2.RetrievePostRequest(post_id=post_id))
         return response
 
     def create_comment(self, user_id, text, parent_id):
+        """
+        Creates a new comment for a post or a comment.
+        Args:
+            user_id (str): The ID of the user creating the comment.
+            text (str): The text of the comment.
+            parent_id (str): The ID of the parent post or comment.
+        Returns:
+            The response from the server after creating the comment.
+        """
         author = reddit_pb2.User(user_id=user_id)
         comment = reddit_pb2.Comment(author=author, text=text, parent_id=parent_id)
         response = self.stub.CreateComment(reddit_pb2.CreateCommentRequest(comment=comment))
@@ -92,18 +138,47 @@ class RedditClient:
         return response
 
     def vote_comment(self, comment_id, upvote):
+        """
+        Votes on a comment (upvote or downvote).
+        Args:
+            comment_id (str): The ID of the comment to vote on.
+            upvote (bool): True for upvote, False for downvote.
+        Returns:
+            The response from the server after voting on the comment.
+        """
         response = self.stub.VoteComment(reddit_pb2.VoteCommentRequest(comment_id=comment_id, upvote=upvote))
         return response
 
     def retrieve_top_comments(self, post_id, number_of_comments):
+        """
+        Retrieves the top comments for a post.
+        Args:
+            post_id (str): The ID of the post.
+            number_of_comments (int): The number of top comments to retrieve.
+        Returns:
+            The response from the server containing the top comments of the post.
+        """
         response = self.stub.RetrieveTopComments(reddit_pb2.RetrieveTopCommentsRequest(post_id=post_id, number_of_comments=number_of_comments))
         return response
 
     def expand_comment_branch(self, comment_id, number_of_comments):
+        """
+        Expands a comment branch to show its replies.
+        Args:
+            comment_id (str): The ID of the comment to expand.
+            number_of_comments (int): The number of replies to retrieve.
+        Returns:
+            The response from the server containing the comment and its replies.
+        """
         response = self.stub.ExpandCommentBranch(reddit_pb2.ExpandCommentBranchRequest(comment_id=comment_id, number_of_comments=number_of_comments))
         return response
 
     def monitor_updates(self, initial_post_id):
+        """
+        Monitors updates to posts and comments.
+        Args:
+            initial_post_id (str): The ID of the initial post to monitor.
+        """
         def request_generator():
             monitored_ids = {initial_post_id}
             yield reddit_pb2.MonitorUpdatesRequest(post_id=initial_post_id)
@@ -145,7 +220,7 @@ class RedditClient:
         auto_add_thread.join()
 
 if __name__ == "__main__":
-    client = RedditClient("localhost", 50559)
+    client = RedditClient("localhost", 5555)
     client.setup_data()
     initial_post_id = next(iter(client.known_posts))
     client.monitor_updates(initial_post_id)
