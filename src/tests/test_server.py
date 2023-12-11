@@ -28,7 +28,7 @@ class TestRedditService(unittest.TestCase):
         self.assertEqual(response.post.subreddit.name, "test_subreddit")
 
     def test_vote_post(self):
-        # Setup the initial state of the post
+        # Set up the initial state of the post
         post_id = 'post_1'
         initial_score = 0
         self.service.posts[post_id] = reddit_pb2.Post(id=post_id, score=initial_score)
