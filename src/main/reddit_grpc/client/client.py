@@ -1,4 +1,9 @@
+import queue
+import random
+import time
+
 import grpc
+import threading
 import reddit_pb2
 import reddit_pb2_grpc
 
@@ -9,6 +14,7 @@ class RedditClient:
         self.stub = reddit_pb2_grpc.RedditServiceStub(self.channel)
         self.known_posts = {f'post_{i}' for i in range(1, 5)}
         self.known_comments = {f'comment_{i}' for i in range(1, 10)}
+        self.new_ids_queue = queue.Queue()
 
 
     def setup_data(self):
@@ -97,26 +103,49 @@ class RedditClient:
         response = self.stub.ExpandCommentBranch(reddit_pb2.ExpandCommentBranchRequest(comment_id=comment_id, number_of_comments=number_of_comments))
         return response
 
-    def monitor_updates(self):
+    def monitor_updates(self, initial_post_id):
         def request_generator():
-            ids_to_monitor = list(self.known_posts) + list(self.known_comments)
-            for item_id in ids_to_monitor:
-                if (item_id.startswith('post_') and item_id in self.known_posts) or \
-                        (item_id.startswith('comment_') and item_id in self.known_comments):
-                    if item_id.startswith('post_'):
-                        yield reddit_pb2.MonitorUpdatesRequest(post_id=item_id)
-                    elif item_id.startswith('comment_'):
-                        yield reddit_pb2.MonitorUpdatesRequest(comment_id=item_id)
+            monitored_ids = {initial_post_id}
+            yield reddit_pb2.MonitorUpdatesRequest(post_id=initial_post_id)
 
-        try:
-            for update in self.stub.MonitorUpdates(request_generator()):
-                print(f"Update received for {update.item_id}: New Score is {update.new_score}")
-        except grpc.RpcError as e:
-            print(f"RPC error occurred: {e.code()}")
-            print(e.details())
+            while True:
+                new_id = self.new_ids_queue.get()
+                if new_id.lower() == 'exit':
+                    break
+                if new_id not in monitored_ids:
+                    monitored_ids.add(new_id)
+                    if new_id.startswith('post_'):
+                        yield reddit_pb2.MonitorUpdatesRequest(post_id=new_id)
+                    elif new_id.startswith('comment_'):
+                        yield reddit_pb2.MonitorUpdatesRequest(comment_id=new_id)
+
+        def receive_updates():
+            try:
+                for update in self.stub.MonitorUpdates(request_generator()):
+                    print(f"\nUpdate received for {update.item_id}: New Score is {update.new_score}")
+            except grpc.RpcError as e:
+                print(f"\nRPC error occurred: {e.code()}")
+                print(e.details())
+
+        def auto_add_ids():
+            existing_ids = list(self.known_posts) + list(self.known_comments)
+            while True:
+                # Randomly choose an existing ID to add for monitoring
+                new_id = random.choice(existing_ids)
+                self.new_ids_queue.put(new_id)
+                time.sleep(3)  # Add a new ID every 5 seconds
+
+        update_thread = threading.Thread(target=receive_updates)
+        auto_add_thread = threading.Thread(target=auto_add_ids)
+
+        update_thread.start()
+        auto_add_thread.start()
+
+        update_thread.join()
+        auto_add_thread.join()
 
 if __name__ == "__main__":
     client = RedditClient("localhost", 50559)
     client.setup_data()
-
-    client.monitor_updates()  # Start monitoring updates directly
+    initial_post_id = next(iter(client.known_posts))
+    client.monitor_updates(initial_post_id)
